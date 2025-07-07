@@ -1,11 +1,23 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import type { WebhookRequest, WebhookEndpoint } from '@/lib/types';
 import { RequestList } from '@/components/webhooks/request-list';
 import { RequestDetails } from '@/components/webhooks/request-details';
 import { Button } from '@/components/ui/button';
-import { RefreshCw, TestTube } from 'lucide-react';
+import { RefreshCw, TestTube, Trash2 } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 export default function EndpointPage({ params }: { params: { id: string } }) {
   const [selectedRequest, setSelectedRequest] = useState<WebhookRequest | null>(null);
@@ -14,6 +26,8 @@ export default function EndpointPage({ params }: { params: { id: string } }) {
   const [webhookUrl, setWebhookUrl] = useState('');
   const [loading, setLoading] = useState(true);
   const [isSimulating, setIsSimulating] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const router = useRouter();
 
   const fetchData = useCallback(async (isInitialLoad = false) => {
     if (isInitialLoad) {
@@ -105,6 +119,26 @@ export default function EndpointPage({ params }: { params: { id: string } }) {
   const handleManualRefresh = () => {
     fetchData(false);
   }
+  
+  const handleDeleteEndpoint = async () => {
+    if (!endpoint) return;
+    setIsDeleting(true);
+    try {
+      const response = await fetch(`/api/endpoints/${endpoint.id}`, {
+        method: 'DELETE',
+      });
+      if (response.ok) {
+        router.push('/');
+      } else {
+        console.error('Failed to delete endpoint');
+        // Optionally show a toast notification on error
+      }
+    } catch (error) {
+      console.error('Failed to delete endpoint', error);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -146,6 +180,29 @@ export default function EndpointPage({ params }: { params: { id: string } }) {
               <TestTube className="mr-2 h-4 w-4" />
               {isSimulating ? 'Sending...' : 'Simulate Request'}
             </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" size="icon">
+                  <Trash2 className="h-4 w-4" />
+                  <span className="sr-only">Delete Endpoint</span>
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This action cannot be undone. This will permanently delete this
+                    endpoint and all of its associated requests.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleDeleteEndpoint} disabled={isDeleting} className="bg-destructive hover:bg-destructive/90">
+                    {isDeleting ? 'Deleting...' : 'Delete'}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
         </div>
       </div>
