@@ -15,13 +15,17 @@ export default function EndpointPage({ params }: { params: { id: string } }) {
   const [loading, setLoading] = useState(true);
   const [isSimulating, setIsSimulating] = useState(false);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (isInitialLoad = false) => {
+    if (isInitialLoad) {
+      setLoading(true);
+    }
     try {
       const response = await fetch(`/api/requests/${params.id}`);
 
       if (!response.ok) {
         if (response.status === 404) {
           setEndpoint(null);
+          setRequests([]);
         }
         throw new Error('Failed to fetch data');
       }
@@ -30,25 +34,43 @@ export default function EndpointPage({ params }: { params: { id: string } }) {
       setEndpoint(data.endpoint);
       setRequests(data.requests);
 
-      const currentSelectedExists = data.requests.some((r: WebhookRequest) => r.id === selectedRequest?.id);
-
-      if (!currentSelectedExists && data.requests.length > 0) {
-        setSelectedRequest(data.requests[0]);
-      } else if (data.requests.length === 0) {
-        setSelectedRequest(null);
+      if (isInitialLoad) {
+        if (data.requests.length > 0) {
+          setSelectedRequest(data.requests[0]);
+        } else {
+          setSelectedRequest(null);
+        }
+      } else {
+        if (selectedRequest && !data.requests.some((r: WebhookRequest) => r.id === selectedRequest.id)) {
+          setSelectedRequest(data.requests.length > 0 ? data.requests[0] : null);
+        }
       }
 
     } catch (error) {
         console.error("Error fetching data.", error);
     } finally {
-      setLoading(false);
+      if (isInitialLoad) {
+        setLoading(false);
+      }
     }
-  }, [params.id, selectedRequest?.id]);
+  }, [params.id, selectedRequest]);
 
+  // Initial data load
   useEffect(() => {
-    setLoading(true);
-    fetchData();
-  }, [params.id, fetchData]);
+    fetchData(true);
+  }, [params.id]);
+
+  // Polling for new requests
+  useEffect(() => {
+    const interval = setInterval(() => {
+        if (!document.hidden) {
+            fetchData(false);
+        }
+    }, 3000); // Poll every 3 seconds
+
+    return () => clearInterval(interval);
+  }, [fetchData]);
+
 
   useEffect(() => {
     if (typeof window !== 'undefined' && endpoint) {
@@ -72,13 +94,17 @@ export default function EndpointPage({ params }: { params: { id: string } }) {
         }),
       });
       // After simulating, refresh the data to show the new request
-      fetchData();
+      fetchData(false);
     } catch (error) {
        console.error("Failed to simulate request", error);
     } finally {
       setIsSimulating(false);
     }
   };
+
+  const handleManualRefresh = () => {
+    fetchData(false);
+  }
 
   if (loading) {
     return (
@@ -113,7 +139,7 @@ export default function EndpointPage({ params }: { params: { id: string } }) {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <Button onClick={fetchData} variant="outline" size="icon" disabled={loading}>
+            <Button onClick={handleManualRefresh} variant="outline" size="icon" disabled={loading}>
                 <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             </Button>
             <Button onClick={handleSimulateRequest} variant="outline" disabled={isSimulating}>

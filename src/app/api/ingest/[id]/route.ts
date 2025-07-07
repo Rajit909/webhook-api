@@ -3,15 +3,23 @@ import type { NextRequest } from 'next/server';
 import { getDb } from '@/lib/db';
 import type { WebhookRequest } from '@/lib/types';
 
+const CORS_HEADERS = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, X-GitHub-Event, Stripe-Signature, Authorization',
+};
+
 export async function POST(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  console.log(`[ingest] Received request for endpoint: ${params.id}`);
   const db = await getDb();
   const endpointId = params.id;
 
   const endpointExists = db.data?.endpoints.some(ep => ep.id === endpointId);
   if (!endpointExists) {
+    console.error(`[ingest] Endpoint not found: ${endpointId}`);
     return NextResponse.json({ error: 'Endpoint not found' }, { status: 404 });
   }
 
@@ -23,7 +31,9 @@ export async function POST(
      } else {
         payload = await req.text();
      }
+     console.log(`[ingest] Parsed payload for ${endpointId}`);
   } catch (e) {
+    console.error(`[ingest] Failed to parse payload for ${endpointId}`, e);
     payload = { error: "Could not parse body" };
   }
 
@@ -45,19 +55,16 @@ export async function POST(
   if (db.data) {
     db.data.requests.unshift(newRequest);
     await db.write();
+    console.log(`[ingest] Successfully saved request ${newRequest.id} for endpoint ${endpointId}`);
   }
 
-  return NextResponse.json({ message: 'Webhook received' }, { status: 200 });
+  return NextResponse.json({ message: 'Webhook received' }, { status: 200, headers: CORS_HEADERS });
 }
 
 // Handle CORS preflight requests
 export async function OPTIONS() {
   return new NextResponse(null, {
       status: 204,
-      headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type, X-GitHub-Event, Stripe-Signature, Authorization',
-      },
+      headers: CORS_HEADERS,
   });
 }
