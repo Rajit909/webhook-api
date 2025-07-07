@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { Plus, Webhook } from 'lucide-react';
 import Link from 'next/link';
@@ -15,9 +15,24 @@ import type { WebhookEndpoint } from '@/lib/types';
 import { initialEndpoints } from '@/lib/data';
 
 export function EndpointList() {
-  const [endpoints, setEndpoints] = useState<WebhookEndpoint[]>(initialEndpoints);
+  const [endpoints, setEndpoints] = useState<WebhookEndpoint[]>([]);
   const pathname = usePathname();
   const router = useRouter();
+
+  useEffect(() => {
+    try {
+      const storedEndpoints = localStorage.getItem('webhook_endpoints');
+      if (storedEndpoints) {
+        setEndpoints(JSON.parse(storedEndpoints));
+      } else {
+        localStorage.setItem('webhook_endpoints', JSON.stringify(initialEndpoints));
+        setEndpoints(initialEndpoints);
+      }
+    } catch (error) {
+      console.error('Failed to access localStorage', error);
+      setEndpoints(initialEndpoints);
+    }
+  }, []);
 
   const handleCreateEndpoint = () => {
     const newId = `ep_new_${Math.random().toString(36).substring(2, 9)}`;
@@ -27,7 +42,17 @@ export function EndpointList() {
       description: 'A newly created endpoint.',
       createdAt: new Date().toISOString(),
     };
-    setEndpoints(prev => [newEndpoint, ...prev]);
+    
+    setEndpoints(prev => {
+      const updatedEndpoints = [newEndpoint, ...prev];
+      try {
+        localStorage.setItem('webhook_endpoints', JSON.stringify(updatedEndpoints));
+      } catch (error) {
+        console.error('Failed to save to localStorage', error);
+      }
+      return updatedEndpoints;
+    });
+
     router.push(`/endpoint/${newId}`);
   };
   
