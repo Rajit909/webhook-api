@@ -12,48 +12,44 @@ import {
 } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
 import type { WebhookEndpoint } from '@/lib/types';
-import { initialEndpoints } from '@/lib/data';
+import { Skeleton } from '../ui/skeleton';
+
 
 export function EndpointList() {
   const [endpoints, setEndpoints] = useState<WebhookEndpoint[]>([]);
+  const [loading, setLoading] = useState(true);
   const pathname = usePathname();
   const router = useRouter();
 
   useEffect(() => {
-    try {
-      const storedEndpoints = localStorage.getItem('webhook_endpoints');
-      if (storedEndpoints) {
-        setEndpoints(JSON.parse(storedEndpoints));
-      } else {
-        localStorage.setItem('webhook_endpoints', JSON.stringify(initialEndpoints));
-        setEndpoints(initialEndpoints);
+    const fetchEndpoints = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch('/api/endpoints');
+        const data = await response.json();
+        setEndpoints(data);
+      } catch (error) {
+        console.error('Failed to fetch endpoints', error);
+      } finally {
+        setLoading(false);
       }
-    } catch (error) {
-      console.error('Failed to access localStorage', error);
-      setEndpoints(initialEndpoints);
-    }
+    };
+    fetchEndpoints();
   }, []);
 
-  const handleCreateEndpoint = () => {
-    const newId = `ep_new_${Math.random().toString(36).substring(2, 9)}`;
-    const newEndpoint: WebhookEndpoint = {
-      id: newId,
-      name: 'New Endpoint',
-      description: 'A newly created endpoint.',
-      createdAt: new Date().toISOString(),
-    };
-    
-    setEndpoints(prev => {
-      const updatedEndpoints = [newEndpoint, ...prev];
-      try {
-        localStorage.setItem('webhook_endpoints', JSON.stringify(updatedEndpoints));
-      } catch (error) {
-        console.error('Failed to save to localStorage', error);
+  const handleCreateEndpoint = async () => {
+    try {
+      const response = await fetch('/api/endpoints', { method: 'POST' });
+      if (response.ok) {
+        const newEndpoint = await response.json();
+        setEndpoints(prev => [newEndpoint, ...prev]);
+        router.push(`/endpoint/${newEndpoint.id}`);
+      } else {
+        console.error('Failed to create endpoint');
       }
-      return updatedEndpoints;
-    });
-
-    router.push(`/endpoint/${newId}`);
+    } catch (error) {
+      console.error('Failed to create endpoint', error);
+    }
   };
   
   return (
@@ -63,19 +59,27 @@ export function EndpointList() {
           New Endpoint
         </Button>
       <SidebarMenu>
-        {endpoints.map(endpoint => {
-          const isActive = pathname === `/endpoint/${endpoint.id}`;
-          return (
-            <SidebarMenuItem key={endpoint.id}>
-              <Link href={`/endpoint/${endpoint.id}`} className="w-full">
-                <SidebarMenuButton tooltip={endpoint.name} isActive={isActive}>
-                  <Webhook />
-                  <span>{endpoint.name}</span>
-                </SidebarMenuButton>
-              </Link>
-            </SidebarMenuItem>
-          );
-        })}
+        {loading ? (
+            <>
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+            </>
+        ) : (
+            endpoints.map(endpoint => {
+            const isActive = pathname === `/endpoint/${endpoint.id}`;
+            return (
+                <SidebarMenuItem key={endpoint.id}>
+                <Link href={`/endpoint/${endpoint.id}`} className="w-full">
+                    <SidebarMenuButton tooltip={endpoint.name} isActive={isActive}>
+                    <Webhook />
+                    <span>{endpoint.name}</span>
+                    </SidebarMenuButton>
+                </Link>
+                </SidebarMenuItem>
+            );
+            })
+        )}
       </SidebarMenu>
     </div>
   );

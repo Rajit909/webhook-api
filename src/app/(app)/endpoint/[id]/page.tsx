@@ -1,103 +1,82 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import type { WebhookRequest, WebhookEndpoint } from '@/lib/types';
-import { initialRequests, initialEndpoints } from '@/lib/data';
 import { RequestList } from '@/components/webhooks/request-list';
 import { RequestDetails } from '@/components/webhooks/request-details';
 import { Button } from '@/components/ui/button';
-import { TestTube } from 'lucide-react';
+import { RefreshCw, TestTube } from 'lucide-react';
 
 export default function EndpointPage({ params }: { params: { id: string } }) {
   const [selectedRequest, setSelectedRequest] = useState<WebhookRequest | null>(null);
   const [endpoint, setEndpoint] = useState<WebhookEndpoint | null>(null);
   const [requests, setRequests] = useState<WebhookRequest[]>([]);
+  const [webhookUrl, setWebhookUrl] = useState('');
   const [loading, setLoading] = useState(true);
+  const [isSimulating, setIsSimulating] = useState(false);
 
-  useEffect(() => {
+  const fetchData = useCallback(async () => {
     try {
-      let allEndpoints: WebhookEndpoint[];
-      let allRequests: WebhookRequest[];
+      const response = await fetch(`/api/requests/${params.id}`);
 
-      const storedEndpointsStr = localStorage.getItem('webhook_endpoints');
-      if (storedEndpointsStr) {
-        allEndpoints = JSON.parse(storedEndpointsStr);
-      } else {
-        allEndpoints = initialEndpoints;
-        localStorage.setItem('webhook_endpoints', JSON.stringify(initialEndpoints));
+      if (!response.ok) {
+        if (response.status === 404) {
+          setEndpoint(null);
+        }
+        throw new Error('Failed to fetch data');
       }
       
-      const storedRequestsStr = localStorage.getItem('webhook_requests');
-      if (storedRequestsStr) {
-        allRequests = JSON.parse(storedRequestsStr);
-      } else {
-        allRequests = initialRequests;
-        localStorage.setItem('webhook_requests', JSON.stringify(initialRequests));
-      }
+      const data = await response.json();
+      setEndpoint(data.endpoint);
+      setRequests(data.requests);
 
-      const currentEndpoint = allEndpoints.find((ep) => ep.id === params.id) || null;
-      const associatedRequests = allRequests
-        .filter((req) => req.endpointId === params.id)
-        .sort((a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime());
-        
-      setEndpoint(currentEndpoint);
-      setRequests(associatedRequests);
+      const currentSelectedExists = data.requests.some((r: WebhookRequest) => r.id === selectedRequest?.id);
 
-      if (associatedRequests.length > 0) {
-        setSelectedRequest(associatedRequests[0]);
-      } else {
+      if (!currentSelectedExists && data.requests.length > 0) {
+        setSelectedRequest(data.requests[0]);
+      } else if (data.requests.length === 0) {
         setSelectedRequest(null);
       }
+
     } catch (error) {
-        console.error("Error accessing localStorage. Falling back to initial data.", error);
-        const currentEndpoint = initialEndpoints.find(ep => ep.id === params.id) || null;
-        const associatedRequests = initialRequests
-          .filter(req => req.endpointId === params.id)
-          .sort((a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime());
-        setEndpoint(currentEndpoint);
-        setRequests(associatedRequests);
-        if (associatedRequests.length > 0) {
-            setSelectedRequest(associatedRequests[0]);
-        } else {
-            setSelectedRequest(null);
-        }
+        console.error("Error fetching data.", error);
     } finally {
       setLoading(false);
     }
-  }, [params.id]);
+  }, [params.id, selectedRequest?.id]);
 
-  const handleSimulateRequest = () => {
+  useEffect(() => {
+    setLoading(true);
+    fetchData();
+  }, [params.id, fetchData]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && endpoint) {
+      setWebhookUrl(`${window.location.origin}/api/ingest/${endpoint.id}`);
+    }
+  }, [endpoint]);
+
+  const handleSimulateRequest = async () => {
     if (!endpoint) return;
-
-    const newRequestId = `req_sim_${Math.random().toString(36).substring(2, 9)}`;
-    const newRequest: WebhookRequest = {
-      id: newRequestId,
-      endpointId: endpoint.id,
-      receivedAt: new Date().toISOString(),
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Simulation-Source': 'WebhookWeaverUI' },
-      payload: { 
-        message: 'This is a simulated request.',
-        timestamp: new Date().toISOString(),
-        source: `simulation-ui`
-      },
-      statusCode: 200,
-    };
+    setIsSimulating(true);
 
     try {
-      const storedRequestsStr = localStorage.getItem('webhook_requests');
-      const allRequests = storedRequestsStr ? JSON.parse(storedRequestsStr) : initialRequests;
-      const updatedRequests = [newRequest, ...allRequests];
-      localStorage.setItem('webhook_requests', JSON.stringify(updatedRequests));
-
-      const associatedRequests = updatedRequests
-        .filter((req: WebhookRequest) => req.endpointId === params.id)
-        .sort((a: WebhookRequest, b: WebhookRequest) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime());
-      
-      setRequests(associatedRequests);
-      setSelectedRequest(newRequest);
+      await fetch(`/api/ingest/${endpoint.id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          message: 'This is a simulated request from the UI.',
+          timestamp: new Date().toISOString(),
+          source: `simulation-ui`,
+          user: 'webhook-weaver-tester'
+        }),
+      });
+      // After simulating, refresh the data to show the new request
+      fetchData();
     } catch (error) {
-      console.error("Failed to simulate request", error);
+       console.error("Failed to simulate request", error);
+    } finally {
+      setIsSimulating(false);
     }
   };
 
@@ -105,7 +84,7 @@ export default function EndpointPage({ params }: { params: { id: string } }) {
     return (
       <div className="flex items-center justify-center min-h-[calc(100vh-10rem)]">
         <div className="text-center">
-          <h2 className="text-2xl font-semibold">Loading...</h2>
+          <h2 className="text-2xl font-semibold">Loading Endpoint...</h2>
         </div>
       </div>
     );
@@ -116,7 +95,7 @@ export default function EndpointPage({ params }: { params: { id: string } }) {
       <div className="flex items-center justify-center min-h-[calc(100vh-10rem)]">
         <div className="text-center">
           <h2 className="text-2xl font-semibold">Endpoint not found</h2>
-          <p className="text-muted-foreground">The requested endpoint does not exist.</p>
+          <p className="text-muted-foreground">The requested endpoint does not exist or could not be loaded.</p>
         </div>
       </div>
     );
@@ -125,18 +104,23 @@ export default function EndpointPage({ params }: { params: { id: string } }) {
   return (
     <div className="flex flex-col h-full">
       <div className="mb-4">
-        <div className="flex justify-between items-start">
-          <div>
+        <div className="flex justify-between items-start gap-4">
+          <div className="flex-1">
             <h1 className="text-3xl font-bold tracking-tight">{endpoint.name}</h1>
             <p className="text-muted-foreground">{endpoint.description}</p>
-            <p className="text-xs text-muted-foreground mt-1 font-mono">
-              <span className="font-bold">URL:</span> https://api.webhook-weaver.com/ingest/{endpoint.id}
+            <p className="text-xs text-muted-foreground mt-1 font-mono break-all">
+              <span className="font-bold">URL:</span> {webhookUrl}
             </p>
           </div>
-          <Button onClick={handleSimulateRequest} variant="outline">
-            <TestTube className="mr-2 h-4 w-4" />
-            Simulate Request
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button onClick={fetchData} variant="outline" size="icon" disabled={loading}>
+                <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            </Button>
+            <Button onClick={handleSimulateRequest} variant="outline" disabled={isSimulating}>
+              <TestTube className="mr-2 h-4 w-4" />
+              {isSimulating ? 'Sending...' : 'Simulate Request'}
+            </Button>
+          </div>
         </div>
       </div>
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 flex-1 min-h-[75vh]">
