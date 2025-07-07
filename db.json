@@ -1,6 +1,12 @@
 {
   "endpoints": [
     {
+      "id": "ep_hd4uduy",
+      "name": "New Endpoint",
+      "description": "A newly created endpoint.",
+      "createdAt": "2025-07-07T08:24:59.107Z"
+    },
+    {
       "id": "ep_p40mkgz",
       "name": "New Endpoint",
       "description": "A newly created endpoint.",

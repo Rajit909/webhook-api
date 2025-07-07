@@ -13,9 +13,16 @@ export async function POST(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  console.log(`[ingest] Received request for endpoint: ${params.id}`);
-  const db = await getDb();
   const endpointId = params.id;
+
+  console.log(`\n--- [ingest] New Request for Endpoint: ${endpointId} ---`);
+  console.log(`Method: ${req.method}`);
+  console.log('Headers:');
+  req.headers.forEach((value, key) => {
+    console.log(`  ${key}: ${value}`);
+  });
+  
+  const db = await getDb();
 
   const endpointExists = db.data?.endpoints.some(ep => ep.id === endpointId);
   if (!endpointExists) {
@@ -25,6 +32,8 @@ export async function POST(
 
   let payload: any;
   const contentType = req.headers.get('content-type');
+  
+  console.log('Parsing payload...');
   try {
      if (contentType && contentType.includes('application/json')) {
         payload = await req.json();
@@ -58,6 +67,7 @@ export async function POST(
     console.log(`[ingest] Successfully saved request ${newRequest.id} for endpoint ${endpointId}`);
   }
 
+  console.log('--- [ingest] End Request ---');
   return NextResponse.json({ message: 'Webhook received' }, { status: 200, headers: CORS_HEADERS });
 }
 
