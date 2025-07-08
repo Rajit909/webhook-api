@@ -23,7 +23,7 @@ export function RequestDetails({ request }: RequestDetailsProps) {
   }
 
   return (
-    <div className="space-y-4 h-full">
+    <div className="flex flex-col space-y-4 h-full">
       <Card>
         <CardHeader>
           <CardTitle>Request Details</CardTitle>
@@ -60,10 +60,10 @@ export function RequestDetails({ request }: RequestDetailsProps) {
           </div>
           <Separator className="my-4" />
           <h4 className="font-medium mb-2">Headers</h4>
-          <CodeBlock data={request.headers} title="Request Headers" className="h-auto" />
+          <CodeBlock data={request.headers} title="Request Headers" className="h-64" />
         </CardContent>
       </Card>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 h-full">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 flex-1 min-h-0">
         <CodeBlock data={request.payload} title="Payload" />
         <AISummary request={request} />
       </div>
