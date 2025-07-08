@@ -1,4 +1,131 @@
 {
-  "endpoints": [],
-  "requests": []
+  "endpoints": [
+    {
+      "id": "ep_kk1vaiy",
+      "name": "New Endpoint",
+      "description": "A newly created endpoint.",
+      "createdAt": "2025-07-08T08:03:05.393Z"
+    },
+    {
+      "id": "ep_slack_789",
+      "name": "Slack Notifications",
+      "description": "Incoming messages from a Slack channel.",
+      "createdAt": "2025-07-07T07:26:49.360Z"
+    },
+    {
+      "id": "ep_github_123",
+      "name": "GitHub Webhooks",
+      "description": "Receives push and PR events from GitHub.",
+      "createdAt": "2025-07-06T07:26:49.360Z"
+    },
+    {
+      "id": "ep_stripe_456",
+      "name": "Stripe Events",
+      "description": "Handles payment success and failure events.",
+      "createdAt": "2025-07-03T07:26:49.360Z"
+    }
+  ],
+  "requests": [
+    {
+      "id": "req_gh_001",
+      "endpointId": "ep_github_123",
+      "receivedAt": "2025-07-08T07:21:49.360Z",
+      "method": "POST",
+      "headers": {
+        "Content-Type": "application/json",
+        "X-GitHub-Event": "push"
+      },
+      "payload": {
+        "ref": "refs/heads/main",
+        "repository": {
+          "name": "webhook-weaver",
+          "full_name": "user/webhook-weaver"
+        },
+        "pusher": {
+          "name": "devuser",
+          "email": "dev@example.com"
+        }
+      },
+      "statusCode": 200
+    },
+    {
+      "id": "req_gh_002",
+      "endpointId": "ep_github_123",
+      "receivedAt": "2025-07-08T05:26:49.360Z",
+      "method": "POST",
+      "headers": {
+        "Content-Type": "application/json",
+        "X-GitHub-Event": "pull_request"
+      },
+      "payload": {
+        "action": "opened",
+        "number": 42,
+        "pull_request": {
+          "title": "Add new feature",
+          "user": {
+            "login": "another-dev"
+          }
+        }
+      },
+      "statusCode": 200
+    },
+    {
+      "id": "req_st_001",
+      "endpointId": "ep_stripe_456",
+      "receivedAt": "2025-07-08T07:16:49.360Z",
+      "method": "POST",
+      "headers": {
+        "Content-Type": "application/json",
+        "Stripe-Signature": "whsec_..."
+      },
+      "payload": {
+        "id": "evt_12345",
+        "type": "payment_intent.succeeded",
+        "data": {
+          "object": {
+            "amount": 2000,
+            "currency": "usd"
+          }
+        }
+      },
+      "statusCode": 200
+    },
+    {
+      "id": "req_st_002",
+      "endpointId": "ep_stripe_456",
+      "receivedAt": "2025-07-07T07:26:49.360Z",
+      "method": "POST",
+      "headers": {
+        "Content-Type": "application/json",
+        "Stripe-Signature": "whsec_..."
+      },
+      "payload": {
+        "id": "evt_67890",
+        "type": "charge.failed",
+        "data": {
+          "object": {
+            "amount": 500,
+            "currency": "eur",
+            "failure_message": "Insufficient funds."
+          }
+        }
+      },
+      "statusCode": 200
+    },
+    {
+      "id": "req_sl_001",
+      "endpointId": "ep_slack_789",
+      "receivedAt": "2025-07-08T06:56:49.360Z",
+      "method": "POST",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "text": "New build deployed to production!",
+        "channel": "#deployments",
+        "username": "DeployBot"
+      },
+      "statusCode": 200
+    }
+  ]
 }
