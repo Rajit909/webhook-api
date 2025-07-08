@@ -3,10 +3,12 @@ import type { NextRequest } from 'next/server';
 import { getDb } from '@/lib/db';
 import type { WebhookRequest } from '@/lib/types';
 
+// Be more permissive with CORS for easier integration with various services,
+// including custom headers that might be sent by APIs like ABDM.
 const CORS_HEADERS = {
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, X-GitHub-Event, Stripe-Signature, Authorization',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-CM-ID, X-HIP-ID, X-GitHub-Event, Stripe-Signature, *',
 };
 
 export async function POST(
@@ -15,7 +17,8 @@ export async function POST(
 ) {
   const endpointId = params.id;
 
-  console.log(`\n--- [ingest] New Request for Endpoint: ${endpointId} ---`);
+  // Added [POST] prefix for clearer logging
+  console.log(`\n--- [ingest][POST] New Request for Endpoint: ${endpointId} ---`);
   console.log(`Method: ${req.method}`);
   console.log('Headers:');
   req.headers.forEach((value, key) => {
@@ -27,7 +30,7 @@ export async function POST(
   const endpointExists = db.data?.endpoints.some(ep => ep.id === endpointId);
   if (!endpointExists) {
     console.error(`[ingest] Endpoint not found: ${endpointId}`);
-    return NextResponse.json({ error: 'Endpoint not found' }, { status: 404 });
+    return NextResponse.json({ error: 'Endpoint not found' }, { status: 404, headers: CORS_HEADERS });
   }
 
   let payload: any;
@@ -37,13 +40,19 @@ export async function POST(
   try {
      if (contentType && contentType.includes('application/json')) {
         payload = await req.json();
+     } else if (contentType && contentType.includes('application/x-www-form-urlencoded')) {
+        // Handle form data
+        const formData = await req.formData();
+        payload = Object.fromEntries(formData.entries());
      } else {
+        // Fallback to text for everything else (e.g., XML, plain text)
         payload = await req.text();
      }
      console.log(`[ingest] Parsed payload for ${endpointId}`);
   } catch (e) {
-    console.error(`[ingest] Failed to parse payload for ${endpointId}`, e);
-    payload = { error: "Could not parse body" };
+    const error = e as Error;
+    console.error(`[ingest] Failed to parse payload for ${endpointId}:`, error);
+    payload = { error: "Could not parse request body", details: error.message };
   }
 
   const headers: Record<string, string> = {};
@@ -67,14 +76,20 @@ export async function POST(
     console.log(`[ingest] Successfully saved request ${newRequest.id} for endpoint ${endpointId}`);
   }
 
-  console.log('--- [ingest] End Request ---');
+  console.log('--- [ingest][POST] End Request ---');
   return NextResponse.json({ message: 'Webhook received' }, { status: 200, headers: CORS_HEADERS });
 }
 
-// Handle CORS preflight requests
-export async function OPTIONS() {
+// Handle CORS preflight requests with logging
+export async function OPTIONS(req: NextRequest) {
+  console.log(`\n--- [ingest][OPTIONS] Preflight Request Received ---`);
+  console.log(`From Origin: ${req.headers.get('origin')}`);
+  console.log(`Request Method: ${req.headers.get('access-control-request-method')}`);
+  console.log(`Request Headers: ${req.headers.get('access-control-request-headers')}`);
+  console.log(`--- [ingest][OPTIONS] Responding with CORS headers ---`);
+
   return new NextResponse(null, {
-      status: 204,
+      status: 204, // No Content
       headers: CORS_HEADERS,
   });
 }
